@@ -17,6 +17,7 @@ import Control.Concurrent
 import Control.Effect.Labelled
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Class
 import Data.Kind
 import System.IO
 
@@ -37,6 +38,9 @@ instance Applicative m => Applicative (ContT r m) where
 -- res c
 instance (Monad m) => Monad (ContT r m) where
   m >>= k = ContT $ \c -> runContT m ((<$>) k >=> (($ c) . runContT))
+
+instance MonadTrans (ContT r) where
+  lift m = ContT $ \g -> g m
 
 instance MonadIO m => MonadIO (ContT r m) where
   liftIO io = ContT $ \c -> c (liftIO io)
