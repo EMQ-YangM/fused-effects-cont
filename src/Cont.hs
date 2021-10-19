@@ -67,17 +67,13 @@ instance Algebra sig m => Algebra (CallCC r :+: sig) (ContT r m) where
   alg hdl sig ctx = case sig of
     L (CallCC f) -> undefined -- callCC1 f  -- runContT (f (\x -> ContT $ \_ -> c (hdl (x <$ ctx)))) c
     R other ->
-      ContT $ \g ->
-        (join . fmap (`runContT` g) . join . fmap runCCA)
-          ( thread
-              ( ( \(CCA v1) -> pure (CCA (fmap join v1))
-                )
-                  ~<~ hdl
-              )
-              other
-              ( pure @(CCA r m) ctx
-              )
-          )
+      ContT $ \g -> do
+        CCA bv <-
+          thread
+            ((\(CCA v1) -> pure (CCA (fmap join v1))) ~<~ hdl)
+            other
+            (pure @(CCA r m) ctx)
+        (`runContT` g) =<< bv
 
 newtype CCA r m a = CCA {runCCA :: m (ContT r m a)}
   deriving (Functor)
@@ -86,19 +82,24 @@ instance Applicative m => Applicative (CCA r m) where
   pure a = CCA (pure (ContT ($ pure a)))
   (<*>) = undefined
 
-type CC r s a = StateC s (ErrorC String (ContT r IO)) a
+-- type CC r s a = StateC s (ErrorC String (ContT r IO)) a
+type CC r s a = ContT r (ErrorC String IO) a
 
-val :: CC () Int Int
+-- val :: CC () Int Int
+val :: CC Int Int Int
+-- val :: ErrorC String IO Int
 val = do
-  -- r <- callCC (\next -> let x = next x in return x)
-  modify @Int (+ 1)
-  tv <- get @Int
-  liftIO $ threadDelay (10 ^ 2)
-  get @Int >>= liftIO . print
-  catchError @String (throwError "finish") (\_ -> return ())
-  -- when (tv > 5) $ throwError "finish" -- catchError @String (throwError "finish") (\_ -> return ())
+  catchError @String (throwError "finish1") (\_ -> return ())
+  catchError @String (catchError @String (throwError "finish2") (\_ -> return ())) (\_ -> return ())
+  catchError @String (throwError "finish3") (\_ -> return ())
+  catchError @String (throwError "finish4") (\_ -> return ())
+  catchError @String (throwError "finish5") (\_ -> return ())
   return 1
 
--- r
+-- r <- callCC (\next -> let x = next x in return x)
+-- when (tv > 5) $ throwError "finish" -- catchError @String (throwError "finish") (\_ -> return ())
 
-runVal = evalContT (>>= print) $ runError @String $ runState @Int 0 $ val
+-- runVal = evalContT (>>= print) $ runError @String $ runState @Int 0 $ val
+runVal = runError @String $ evalContT id val
+
+-- runVal = runError @String val
