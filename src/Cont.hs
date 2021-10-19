@@ -4,6 +4,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -17,6 +18,7 @@ import Control.Concurrent
 import Control.Effect.Labelled
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Identity
 import Control.Monad.Trans.Class
 import Data.Kind
 import System.IO
@@ -62,7 +64,33 @@ cc = sendLabelled @CallCC . CallCC
 instance Algebra sig m => Algebra (CallCC r :+: sig) (ContT r m) where
   alg hdl sig ctx = case sig of
     L (CallCC f) -> undefined -- callCC1 f  -- runContT (f (\x -> ContT $ \_ -> c (hdl (x <$ ctx)))) c
-    R other -> ContT $ \g -> g (alg undefined other ctx)
+    R other ->
+      ContT $ \g ->
+        g $
+          join
+            ( ( ( thread
+                    ( ( \x -> do
+                          r <- x
+                          l' <- runContT r (\mx -> undefined)
+                          undefined
+                      )
+                        ~<~ hdl
+                    )
+                    other
+                    ( pure @m ctx
+                    )
+                )
+              )
+            )
+
+-- m ==  _ :: forall x. m (ContT r m x) -> (m (ctx a) -> m r) -> m x
+
+-- Identity == forall x. Identity (ContT r m x) -> (m (ctx a) -> m r) -> Identity x
+
+-- ContT r m (ctx a)
+-- (m (ctx a) -> m r) -> m r
+
+--
 
 -- val :: (Has (State Int :+: State String) sig m, HasLabelled CallCC (CallCC Int) sig m, MonadIO m) => m Int
 
