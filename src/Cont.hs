@@ -21,7 +21,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Identity
 import Control.Monad.Trans.Class
 import Data.Functor.Const
-import Data.Functor.Identity (Identity (runIdentity))
+import Data.Functor.Identity
 import Data.Kind
 import System.IO
 
