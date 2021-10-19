@@ -68,7 +68,7 @@ instance Algebra sig m => Algebra (CallCC r :+: sig) (ContT r m) where
     L (CallCC f) -> undefined -- callCC1 f  -- runContT (f (\x -> ContT $ \_ -> c (hdl (x <$ ctx)))) c
     R other ->
       ContT $ \g -> do
-        CCA bv <- thread ((\(CCA v1) -> pure (CCA (fmap join v1))) ~<~ hdl) other (pure @(CCA r m) ctx)
+        CCA bv <- thread ((\(CCA v1) -> pure $ CCA $ fmap join v1) ~<~ hdl) other (pure @(CCA r m) ctx)
         (`runContT` g) =<< bv
 
 newtype CCA r m a = CCA {runCCA :: m (ContT r m a)}
