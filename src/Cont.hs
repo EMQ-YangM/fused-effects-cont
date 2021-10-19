@@ -20,6 +20,8 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Identity
 import Control.Monad.Trans.Class
+import Data.Functor.Const
+import Data.Functor.Identity (Identity (runIdentity))
 import Data.Kind
 import System.IO
 
@@ -66,22 +68,43 @@ instance Algebra sig m => Algebra (CallCC r :+: sig) (ContT r m) where
     L (CallCC f) -> undefined -- callCC1 f  -- runContT (f (\x -> ContT $ \_ -> c (hdl (x <$ ctx)))) c
     R other ->
       ContT $ \g ->
-        g $
-          join
-            ( ( ( thread
-                    ( ( \x -> do
-                          r <- x
-                          l' <- runContT r (\mx -> undefined)
-                          undefined
-                      )
-                        ~<~ hdl
-                    )
-                    other
-                    ( pure @m ctx
-                    )
+        (join . fmap (`runContT` g) . join . fmap runCCA)
+          ( thread
+              ( ( \(CCA v1) -> do
+                    v1' <- v1
+                    pure (CCA $ pure (join v1'))
                 )
+                  ~<~ hdl
               )
-            )
+              other
+              ( pure @(CCA r m) ctx
+              )
+          )
+
+-- _ :: Identity (ctx a) -> ctx a
+
+-- _ :: forall x. m (ContT r m (ContT r m x)) -> m (m (ContT r m x))
+
+-- _ :: forall x. CCA r m (ContT r m x) -> m (CCA r m x)
+-- m (ContT r m (ContT r m x) ) -> m (m (ContT r m x))
+
+-- m (CCA r m (ctx a))
+-- m (m (ContT r m (ctx a)))
+-- m (ContT r m (ctx a))
+-- m ( m r)
+-- m r
+
+newtype CCA r m a = CCA {runCCA :: m (ContT r m a)}
+  deriving (Functor)
+
+instance Applicative m => Applicative (CCA r m) where
+  pure a = CCA (pure (ContT ($ pure a)))
+  (<*>) = undefined
+
+-- newtype UnContT r m a = UnContT {runUnCountT :: m r -> m a}
+--   deriving (Functor)
+
+-- instance Functor m => Applicative (UnContT r m)
 
 -- m ==  _ :: forall x. m (ContT r m x) -> (m (ctx a) -> m r) -> m x
 
