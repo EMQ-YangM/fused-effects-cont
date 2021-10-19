@@ -65,20 +65,12 @@ cc = sendLabelled @CallCC . CallCC
 
 instance Algebra sig m => Algebra (CallCC r :+: sig) (ContT r m) where
   alg hdl sig ctx = case sig of
-    L (CallCC f) -> undefined -- callCC1 f  -- runContT (f (\x -> ContT $ \_ -> c (hdl (x <$ ctx)))) c
+    L (CallCC f) -> undefined
     R other ->
       ContT $ \g -> do
-        CCA bv <- thread ((\(CCA v1) -> pure $ CCA $ fmap join v1) ~<~ hdl) other (pure @(CCA r m) ctx)
-        (`runContT` g) =<< bv
+        ContT bv <- thread ((pure . join) ~<~ hdl) other (pure @(ContT r m) ctx)
+        bv g
 
-newtype CCA r m a = CCA {runCCA :: m (ContT r m a)}
-  deriving (Functor)
-
-instance Applicative m => Applicative (CCA r m) where
-  pure a = CCA (pure (ContT ($ pure a)))
-  (<*>) = undefined
-
--- type CC r s a = StateC s (ErrorC String (ContT r IO)) a
 type CC r s a = ContT r (ErrorC String IO) a
 
 -- val :: CC () Int Int
