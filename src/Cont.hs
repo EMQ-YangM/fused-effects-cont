@@ -66,10 +66,9 @@ cc = sendLabelled @CallCC . CallCC
 instance Algebra sig m => Algebra (CallCC r :+: sig) (ContT r m) where
   alg hdl sig ctx = case sig of
     L (CallCC f) -> undefined
-    R other ->
-      ContT $ \g -> do
-        ContT bv <- thread ((pure . join) ~<~ hdl) other (pure @(ContT r m) ctx)
-        bv g
+    R other -> ContT $ \g -> do
+      ContT bv <- thread ((pure . join) ~<~ hdl) other (pure @(ContT r m) ctx)
+      bv g
 
 type CC r s a = ContT r (ErrorC String IO) a
 
@@ -78,7 +77,6 @@ val :: CC Int Int Int
 -- val :: ErrorC String IO Int
 val = do
   catchError @String (throwError "finish1") (\_ -> return ())
-  catchError @String (catchError @String (throwError "finish2") (\_ -> return ())) (\_ -> return ())
   catchError @String (throwError "finish3") (\_ -> return ())
   catchError @String (throwError "finish4") (\_ -> return ())
   catchError @String (throwError "finish5") (\_ -> return ())
