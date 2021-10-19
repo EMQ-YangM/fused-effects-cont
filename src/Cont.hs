@@ -12,8 +12,8 @@
 module Cont where
 
 import Control.Algebra
+import Control.Carrier.Error.Either
 import Control.Carrier.State.Strict
-import Control.Carrier.Throw.Either
 import Control.Concurrent
 import Control.Effect.Labelled
 import Control.Monad
@@ -70,9 +70,7 @@ instance Algebra sig m => Algebra (CallCC r :+: sig) (ContT r m) where
       ContT $ \g ->
         (join . fmap (`runContT` g) . join . fmap runCCA)
           ( thread
-              ( ( \(CCA v1) -> do
-                    v1' <- v1
-                    pure (CCA $ pure (join v1'))
+              ( ( \(CCA v1) -> pure (CCA (fmap join v1))
                 )
                   ~<~ hdl
               )
@@ -81,19 +79,6 @@ instance Algebra sig m => Algebra (CallCC r :+: sig) (ContT r m) where
               )
           )
 
--- _ :: Identity (ctx a) -> ctx a
-
--- _ :: forall x. m (ContT r m (ContT r m x)) -> m (m (ContT r m x))
-
--- _ :: forall x. CCA r m (ContT r m x) -> m (CCA r m x)
--- m (ContT r m (ContT r m x) ) -> m (m (ContT r m x))
-
--- m (CCA r m (ctx a))
--- m (m (ContT r m (ctx a)))
--- m (ContT r m (ctx a))
--- m ( m r)
--- m r
-
 newtype CCA r m a = CCA {runCCA :: m (ContT r m a)}
   deriving (Functor)
 
@@ -101,62 +86,19 @@ instance Applicative m => Applicative (CCA r m) where
   pure a = CCA (pure (ContT ($ pure a)))
   (<*>) = undefined
 
--- newtype UnContT r m a = UnContT {runUnCountT :: m r -> m a}
---   deriving (Functor)
+type CC r s a = StateC s (ErrorC String (ContT r IO)) a
 
--- instance Functor m => Applicative (UnContT r m)
-
--- m ==  _ :: forall x. m (ContT r m x) -> (m (ctx a) -> m r) -> m x
-
--- Identity == forall x. Identity (ContT r m x) -> (m (ctx a) -> m r) -> Identity x
-
--- ContT r m (ctx a)
--- (m (ctx a) -> m r) -> m r
-
---
-
--- val :: (Has (State Int :+: State String) sig m, HasLabelled CallCC (CallCC Int) sig m, MonadIO m) => m Int
-
--- main = do
---   hSetBuffering stdout NoBuffering
---   runContT (callCC askString) $ \r -> do
---     reportResult r
---     reportResult r
---     reportResult r
---     reportResult r
-
--- askString :: (String -> ContT () IO String) -> ContT () IO String
--- askString next = do
---   liftIO $ putStrLn "Please enter a string"
---   s <- liftIO $ getLine
---   next s
---   liftIO $ putStrLn "Please enter a string"
---   liftIO $ putStrLn "Please enter a string"
---   liftIO $ putStrLn "Please enter a string"
---   return "hello"
-
--- reportResult :: IO String -> IO ()
--- reportResult s' = do
---   s <- s'
---   putStrLn ("You entered: " ++ s)
-
-type CC r s a = ContT r (ContT r (StateC s (StateC String (ThrowC String IO)))) a
-
-val :: CC Int Int Int
+val :: CC () Int Int
 val = do
-  liftIO $ print 1
-  r <- callCC (\next -> let x = next x in return x)
+  -- r <- callCC (\next -> let x = next x in return x)
   modify @Int (+ 1)
-  modify @String (++ "nice")
-  liftIO $ print 2
   tv <- get @Int
-  liftIO $ print 3
-  liftIO $ print 4
-  liftIO $ threadDelay (10 ^ 6)
+  liftIO $ threadDelay (10 ^ 2)
   get @Int >>= liftIO . print
-  get @String >>= liftIO . putStrLn
-  when (tv > 5) $ throwError "finish"
-  r
+  catchError @String (throwError "finish") (\_ -> return ())
+  -- when (tv > 5) $ throwError "finish" -- catchError @String (throwError "finish") (\_ -> return ())
   return 1
 
-runVal = runThrow @String $ runState @String "" $ runState @Int 0 $ evalContT id $ evalContT id val
+-- r
+
+runVal = evalContT (>>= print) $ runError @String $ runState @Int 0 $ val
